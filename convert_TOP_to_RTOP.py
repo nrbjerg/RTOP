@@ -9,12 +9,14 @@ from tqdm import tqdm
 path_to_TOP_instances = os.path.join(os.getcwd(), "problem_instances", "TOP")
 path_to_CPM_RTOP_instances = os.path.join(os.getcwd(), "problem_instances", "RTOP")
 
-plot_first_instance = False
+plot_first_instance = True
+
+risk_matricies = dict()
 
 for idx, file_id in tqdm(enumerate(sorted(os.listdir(path_to_TOP_instances)))):
     print(f"Currently at instance: {idx + 1} / {len(os.listdir(path_to_TOP_instances))}")
     # Load data 
-    np.random.seed(idx)
+    problem_instance_type = int(file_id[1])
     with open(os.path.join(path_to_TOP_instances, file_id), "r") as file:
         lines = list(map(lambda line: line.replace("\t", " "), file.read().splitlines()))
 
@@ -29,62 +31,65 @@ for idx, file_id in tqdm(enumerate(sorted(os.listdir(path_to_TOP_instances)))):
     x_max, x_min = max(map(lambda p: p[0], positions)), min(map(lambda p: p[0], positions))
     y_max, y_min = max(map(lambda p: p[1], positions)), min(map(lambda p: p[1], positions))
 
-    means = np.vstack((np.random.uniform(x_min, x_max, size=m), np.random.uniform(y_min, y_max, size=m)))
+    if problem_instance_type not in risk_matricies.keys():
+        np.random.seed(int(file_id[1]))
+        means = np.vstack((np.random.uniform(x_min, x_max, size=m), np.random.uniform(y_min, y_max, size=m)))
 
-    sigma_xs, sigma_ys = (x_max - x_min) / 8 * np.random.uniform(0.5, 1, size = m), (y_max - y_min) / 8 * (np.random.uniform(0.5, 1, size = m))  
+        sigma_xs, sigma_ys = (x_max - x_min) / 8 * np.random.uniform(0.5, 1, size = m), (y_max - y_min) / 8 * (np.random.uniform(0.5, 1, size = m))  
 
-    rhos = 2 * (np.random.beta(3, 3, size = m) - 0.5) 
+        rhos = 2 * (np.random.beta(3, 3, size = m) - 0.5) 
 
-    covariances = [np.array([[sigma_x ** 2, rho * sigma_x * sigma_y],
-                             [rho * sigma_x * sigma_y, sigma_y ** 2]]) 
-                   for sigma_x, sigma_y, rho in zip(sigma_xs, sigma_ys, rhos)]
+        covariances = [np.array([[sigma_x ** 2, rho * sigma_x * sigma_y],
+                                 [rho * sigma_x * sigma_y, sigma_y ** 2]]) 
+                       for sigma_x, sigma_y, rho in zip(sigma_xs, sigma_ys, rhos)]
 
-    distributions = [multivariate_normal(mean, cov) for mean, cov in zip(means.T, covariances)]
+        distributions = [multivariate_normal(mean, cov) for mean, cov in zip(means.T, covariances)]
 
-    f = lambda x: sum(distribution.pdf(x) for distribution in distributions)
+        f = lambda x: sum(distribution.pdf(x) for distribution in distributions)
 
-    # Plot the contour plot of a single f:
-    if plot_first_instance:
-        plt.rcParams['figure.figsize'] = [12, 9]
-        plt.style.use("seaborn-v0_8-whitegrid")
-        plt.gca().set_aspect("equal", adjustable="box")
-        xs = np.linspace(-0.5, 30.5, 200)
-        ys = np.linspace(-0.5, 30.5, 200)
-        zs = np.array([[f([x, y]) for x in xs] for y in ys])
-        c_map = mpl.colors.LinearSegmentedColormap.from_list("", ["tab:green", "tab:blue", "tab:purple", "tab:red"])
-        plt.contour(xs, ys, zs, levels=16, cmap=c_map, zorder=1)
-        plt.colorbar(mpl.cm.ScalarMappable(norm=plt.Normalize(0, 0.084), cmap=c_map), ax=plt.gca())
-        min_score = min(scores) 
-        max_score = max(scores) 
-        for pos, s in zip(positions[1:-1], scores):
-            plt.scatter(pos[0], pos[1], (0.2 + (s - min_score) / (max_score - min_score)) * 120, color="tab:gray", zorder=2)
+        # Plot the contour plot of a single f:
+        if plot_first_instance:
+            plt.rcParams['figure.figsize'] = [12, 9]
+            plt.style.use("seaborn-v0_8-whitegrid")
+            plt.gca().set_aspect("equal", adjustable="box")
+            xs = np.linspace(-0.5, 30.5, 200)
+            ys = np.linspace(-0.5, 30.5, 200)
+            zs = np.array([[f([x, y]) for x in xs] for y in ys])
+            c_map = mpl.colors.LinearSegmentedColormap.from_list("", ["tab:green", "tab:blue", "tab:purple", "tab:red"])
+            plt.contour(xs, ys, zs, levels=16, cmap=c_map, zorder=1)
+            plt.colorbar(mpl.cm.ScalarMappable(norm=plt.Normalize(0, 0.084), cmap=c_map), ax=plt.gca())
+            min_score = min(scores) 
+            max_score = max(scores) 
+            for pos, s in zip(positions[1:-1], scores):
+                plt.scatter(pos[0], pos[1], (0.2 + (s - min_score) / (max_score - min_score)) * 120, color="tab:gray", zorder=2)
 
-        plt.scatter(*positions[0], 120, marker = "s", c = "black", zorder=10)
-        plt.scatter(*positions[-1], 120, marker = "d", c = "black", zorder=10)
-        plt.title(f"TOP Instance: {file_id[:-4]}")
-        plt.ylim(-0.5, 30.5)
-        plt.xlim(-0.5, 30.5)
-        plt.savefig("from_generation.png", bbox_inches="tight")
+            plt.scatter(*positions[0], 120, marker = "s", c = "black", zorder=10)
+            plt.scatter(*positions[-1], 120, marker = "d", c = "black", zorder=10)
+            plt.title(f"TOP Instance: {file_id[:-4]}")
+            plt.ylim(-0.5, 30.5)
+            plt.xlim(-0.5, 30.5)
+            plt.savefig("from_generation.png", bbox_inches="tight")
+            plot_first_instance = False
 
-    omegas = np.zeros(shape=(N, N))
-    for i in range(N):
-        for j in range(N):
-            if i >= j or all(positions[i] == positions[j]): continue
+        omegas = np.zeros(shape=(N, N))
+        for i in range(N):
+            for j in range(N):
+                if i >= j or all(positions[i] == positions[j]): continue
 
-            dist = np.linalg.norm(positions[i] - positions[j])
-            ell = int(np.ceil(dist / 2)) 
-            if ell == 0:
-                raise ValueError("Got ell == 0")
+                dist = np.linalg.norm(positions[i] - positions[j])
+                ell = int(np.ceil(dist / 2)) 
+                if ell == 0:
+                    raise ValueError("Got ell == 0")
 
-            phi = lambda s: positions[i] * s + positions[j] * (1 - s)
-            omegas[i, j] = dist / ell * sum(f(phi(k / (ell + 1))) for k in range(1, ell + 1))
-            omegas[j, i] = omegas[i, j]
+                phi = lambda s: positions[i] * s + positions[j] * (1 - s)
+                omegas[i, j] = dist / ell * sum(f(phi(k / (ell + 1))) for k in range(1, ell + 1))
+                omegas[j, i] = omegas[i, j]
 
-    omega_max = max(max(omegas[i, j] for i in range(N) if i < j) for j in range(N) if j != 0)
-    rs = 1 / (4 * omega_max) * omegas
-
+        omega_max = max(max(omegas[i, j] for i in range(N) if i < j) for j in range(N) if j != 0)
+        risk_matricies[problem_instance_type] = 1 / (4 * omega_max) * omegas
+    
     # Save data 
-    points_and_risks = "\n".join([line + " " + str(list(map(lambda r: float(round(r, 4)), rs[i])))[1:-1].replace(",", "") for i, line in enumerate(lines[3:])])
+    points_and_risks = "\n".join([line + " " + str(list(map(lambda r: float(round(r, 4)), risk_matricies[problem_instance_type][i])))[1:-1].replace(",", "") for i, line in enumerate(lines[3:])])
 
     with open(os.path.join(path_to_CPM_RTOP_instances, file_id), "w+") as new_file:
         new_file.write("\n".join(info) + "\n" + points_and_risks)
